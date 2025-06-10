@@ -7,6 +7,7 @@ import idc
 import ida_hexrays
 import ida_typeinf
 import ida_kernwin
+import ida_lines
 
 from PyQt5.QtWidgets import QApplication
 
@@ -26,6 +27,69 @@ def copy_to_clip(data):
 
 def get_clip_text():
     return QApplication.clipboard().text()
+
+def get_func_params(x):
+    tinfo = x.type
+    func_data = idaapi.func_type_data_t()
+
+    if tinfo.is_funcptr():
+        func_type = tinfo.get_pointed_object()
+    elif tinfo.is_func():
+        func_type = tinfo
+    else:
+        return None
+
+    assert(func_type.is_func())
+    func_type.get_func_details(func_data)
+
+    return func_data
+
+def tag_text(text, tag):
+    # address tagging doesn't have COLOR_OFF pair
+    FMT = '%c%c%' + '0%dX' % ida_lines.COLOR_ADDR_SIZE + '%s'
+    return FMT % (ida_lines.COLOR_ON, ida_lines.COLOR_ADDR, tag, text)
+
+def add_parameter_labels(cf):
+    ci = ida_hexrays.ctree_item_t()
+    ccode = cf.get_pseudocode()
+    target = {}
+    for line_idx in range(cf.hdrlines, len(ccode)):
+        sl = ccode[line_idx]
+        for char_idx in range(len(sl.line)):
+            if cf.get_line_item(sl.line, char_idx, True, None, ci, None):
+                if ci.it.is_expr() and ci.e.op == ida_hexrays.cot_call:
+                    if ci.e.x.op == ida_hexrays.cot_helper:
+                        #TODO: build known helper dictionary
+                        pass
+                    else:
+                        args = get_func_params(ci.e.x)
+                        if not args:
+                            continue
+
+                        for a, arg in zip(ci.e.a, args):
+                            name = arg.name
+                            ty = arg.type
+                            # filter same name cases
+                            # TODO: add support to hide tag if A: B->A ? (should filter A: [*&]B->A cases / or not? no sense to do that actually...)
+                            if a.dstr() == name:
+                                continue
+
+                            idx = a.index
+                            tag = a.print1(None)
+                            target[tag] = (idx, name)
+        for item in list(target.keys()):
+            if item in sl.line:
+                (index, name) = target.pop(item)
+                if name == '':
+                    name = "unk"
+                label = ida_lines.COLSTR(name, ida_lines.SCOLOR_HIDNAME)
+                tagged = tag_text(label, index)
+                sl.line = sl.line.replace(item, tagged + ": " + item)
+
+class HexRaysHooks(ida_hexrays.Hexrays_Hooks):
+    def func_printed(self, cfunc):
+        add_parameter_labels(cfunc)
+        return 0
 
 class menu_action_handler_t(idaapi.action_handler_t):
     """
@@ -313,10 +377,8 @@ class HappyIDA_t(idaapi.plugin_t):
         idaapi.register_action(edit)
         self.registered_actions.append(edit.name)
 
-        # Add ui hook
-
-        # Add hexrays ui callback
         if idaapi.init_hexrays_plugin():
+            # Add hexrays ui callback
             hx_actions = (
                 idaapi.action_desc_t(ACTION_HX_COPYNAME, "Copy name", hexrays_action_handler_t(ACTION_HX_COPYNAME), "c"),
                 idaapi.action_desc_t(ACTION_HX_PASTENAME, "Paste name", hexrays_action_handler_t(ACTION_HX_PASTENAME), "V"),
@@ -327,6 +389,10 @@ class HappyIDA_t(idaapi.plugin_t):
             for action in hx_actions:
                 idaapi.register_action(action)
                 self.registered_hx_actions.append(action.name)
+
+            # Register hexrays hook
+            self.hr_hooks = HexRaysHooks()
+            self.hr_hooks.hook()
 
             self.hexrays_inited = True
 
@@ -344,6 +410,9 @@ class HappyIDA_t(idaapi.plugin_t):
             # Unregister hexrays actions
             for action in self.registered_hx_actions:
                 idaapi.unregister_action(action)
+
+            # Unregister hexrays hook
+            self.hr_hooks.unhook()
 
             # TODO: what is this?
             idaapi.term_hexrays_plugin()
