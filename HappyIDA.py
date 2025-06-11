@@ -29,6 +29,15 @@ def copy_to_clip(data):
 def get_clip_text():
     return QApplication.clipboard().text()
 
+def parse_type(tif, typename):
+    typename += " ;"
+    # we have to distinguish None from empty string, since parse_decl returns the parsed variable name
+    if ida_typeinf.parse_decl(tif, ida_typeinf.get_idati(), typename, ida_typeinf.PT_SIL) == None:
+        error(f"Unable to parse declaration: {typename}")
+        return False
+    
+    return True
+
 def tag_text(text, tag):
     # address tagging doesn't have COLOR_OFF pair
     FMT = '%c%c%' + '0%dX' % ida_lines.COLOR_ADDR_SIZE + '%s'
@@ -128,18 +137,20 @@ class HexraysFuncLabelHooks(ida_hexrays.Hexrays_Hooks):
                 return HandleStatus.HANDLED
 
             newtif = ida_typeinf.tinfo_t()
-            ida_typeinf.parse_decl(newtif, ida_typeinf.get_idati(), newtype + ';', ida_typeinf.PT_TYP)
+            if not parse_type(newtif, newtype):
+                return HandleStatus.FAILED
+
             func_data[argidx].type = newtif
 
         # Recreate the function type with the modified argument names
         if not tif.create_func(func_data):
             error('Failed to create the modified function type.')
-            return HandleStatus.NOT_HANDLED
+            return HandleStatus.FAILED
 
         # Apply the modified type back to the function
         if not ida_typeinf.apply_tinfo(func_ea, tif, idaapi.TINFO_DEFINITE):
             error(f'Failed to apply the modified function type to {hex(func_ea)}.')
-            return HandleStatus.NOT_HANDLED
+            return HandleStatus.FAILED
 
         vdui.refresh_view(False)
         return HandleStatus.HANDLED
@@ -589,18 +600,17 @@ class HexraysPasteNameAction(idaapi.action_handler_t):
             return None
 
         # Iterate through the members to find the one at the specified offset
-        count = 0
-        for member in struct_type_data:
+        for idx, member in enumerate(struct_type_data):
             if member.offset == offset:
                 if member.can_rename():
                     member.name = new_name
-                    if tinfo.rename_udm(count, new_name):
+                    if tinfo.rename_udm(idx, new_name) == 0:
                         info(f"Member at offset {offset} renamed to {new_name}")
                         return new_name
                     else:
                         error(f"Failed to rename member at offset {offset}")
                         return None
-            count += 1
+
         error("No member found at the specified offset")
         return None
 
@@ -707,8 +717,7 @@ class HexraysPasteTypeAction(idaapi.action_handler_t):
             type_name = get_clip_text()
             new_tif = idaapi.tinfo_t()
             if not new_tif.get_named_type(ida_typeinf.get_idati(), type_name):
-                if not ida_typeinf.parse_decl(new_tif, ida_typeinf.get_idati(), type_name + " ;",0):
-                    error(f"Unable to parse declaration: {type_name};")
+                if not parse_type(new_tif, type_name):
                     return 0
 
             parent_tinfo.set_udm_type(index, new_tif)
@@ -722,9 +731,9 @@ class HexraysPasteTypeAction(idaapi.action_handler_t):
 
     def assign_type_to_lvar(self, vdui, lvar):
         new_tif = idaapi.tinfo_t()
-        if not new_tif.get_named_type(ida_typeinf.get_idati(), get_clip_text()):
-            if not ida_typeinf.parse_decl(new_tif, ida_typeinf.get_idati(), get_clip_text() + " ;",0):
-                error(f"Unable to parse declaration: {get_clip_text()};")
+        typename = get_clip_text()
+        if not new_tif.get_named_type(ida_typeinf.get_idati(), typename):
+            if not parse_type(new_tif, typename):
                 return False
 
         lsi = ida_hexrays.lvar_saved_info_t()
@@ -780,25 +789,34 @@ class HexraysEditTypeAction(idaapi.action_handler_t):
         vdui = ida_hexrays.get_widget_vdui(ctx.widget)
 
         item = vdui.item
-        if item.is_citem() and item.it.is_expr():
-            if item.e.v is not None:
-                t = item.e.v.getv().type()
-                self._edit_type(t)
-            elif item.it.op in [ida_hexrays.cot_memptr, ida_hexrays.cot_memref]:
-                udm_data = idaapi.udm_t()
-                parent_tinfo = idaapi.tinfo_t()
-                item.get_udm(udm_data, parent_tinfo, None)
-                self._edit_type(udm_data.type)
-            elif item.e.obj_ea != idaapi.BADADDR:
-                type_name = idc.get_type(item.e.obj_ea)
-                new_tif = idaapi.tinfo_t()
-                if not new_tif.get_named_type(ida_typeinf.get_idati(), type_name):
-                    ida_typeinf.parse_decl(new_tif, ida_typeinf.get_idati(), type_name + " ;",0)
-                self._edit_type(new_tif)
-        else:
-            # no variable under cursor or not a valid lvar item
+        if not item.is_citem():
             return 0
 
+        if not item.it.is_expr():
+            error("No variable under cursor or not a valid lvar item.")
+            return 0
+        
+        tif = None
+
+        if item.e.v is not None:
+            tif = item.e.v.getv().type()
+
+        elif item.it.op in [ida_hexrays.cot_memptr, ida_hexrays.cot_memref]:
+            udm_data = idaapi.udm_t()
+            parent_tinfo = idaapi.tinfo_t()
+            item.get_udm(udm_data, parent_tinfo, None)
+            tif = udm_data.type
+
+        elif item.e.obj_ea != idaapi.BADADDR:
+            type_name = idc.get_type(item.e.obj_ea)
+            new_tif = idaapi.tinfo_t()
+            if not new_tif.get_named_type(ida_typeinf.get_idati(), type_name):
+                if not parse_type(new_tif, type_name):
+                    return 0
+            
+            tif = new_tif
+
+        self._edit_type(tif)
         return 1
 
     def _edit_type(self, t):
