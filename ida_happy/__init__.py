@@ -247,10 +247,10 @@ class HexraysFuncLabelHook(ida_hexrays.Hexrays_Hooks):
             return HandleStatus.NOT_HANDLED
 
         # check if our cursor locate inside the function call
-        # drop A: [A]->B
+        # drop: [A]->B and [F](a, b, c)
         # (the parent of the selection is B cot_memptr)
         pit = vdui.cfunc.body.find_parent_of(item.it)
-        if not pit.is_expr() or pit.op != ida_hexrays.cot_call:
+        if not pit.is_expr() or pit.op != ida_hexrays.cot_call or pit.cexpr.x == item.e:
             return HandleStatus.NOT_HANDLED
 
         fcall = pit.cexpr
@@ -264,7 +264,12 @@ class HexraysFuncLabelHook(ida_hexrays.Hexrays_Hooks):
             error('Unable to find the selected ctree node')
             return HandleStatus.NOT_HANDLED
 
+        # NOTE: when working with large IDBs,
+        # we often can't get type information without decompiling functions first.
         func_ea = fcall.x.obj_ea
+        func = idaapi.get_func(func_ea)
+        ida_hexrays.decompile_func(func)
+
         tif = ida_typeinf.tinfo_t()
         if not idaapi.get_tinfo(tif, func_ea):
             error(f'Failed to retrieve the real function type for {hex(func_ea)}')
