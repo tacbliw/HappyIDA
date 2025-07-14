@@ -20,7 +20,7 @@ class HexraysRebuildSEHHook(ida_hexrays.Hexrays_Hooks):
 
     def maturity(self, cfunc, maturity):
         if maturity == idaapi.CMAT_FINAL:
-            self.mutate_ctree(cfunc.body)
+            self.mutate_ctree(cfunc)
         return 0
 
     def func_printed(self, cfunc):
@@ -40,7 +40,7 @@ class HexraysRebuildSEHHook(ida_hexrays.Hexrays_Hooks):
             if not idx or not tryblock.is_seh():
                 continue
 
-            print(f'try block #{idx}')
+            # print(f'try block #{idx}')
             # TODO: should consider nested SEH case
             # TODO: could contain multiple ranges (nested case?), should check if len > 1
             # finally block?
@@ -61,8 +61,8 @@ class HexraysRebuildSEHHook(ida_hexrays.Hexrays_Hooks):
 
                 eh_start_list.append(eh.start_ea)
 
-            print(f'range: [{hex(try_start)}, {hex(try_end)})')
-            print(f'handler: {[hex(i) for i in eh_start_list]}')
+            # print(f'range: [{hex(try_start)}, {hex(try_end)})')
+            # print(f'handler: {[hex(i) for i in eh_start_list]}')
 
             # TODO: currently support only one catch block
             # however, it looks like msvc only accept one __except block?
@@ -119,7 +119,7 @@ class HexraysRebuildSEHHook(ida_hexrays.Hexrays_Hooks):
             insn.d = d
             blk.insert_into_block(insn, blk.tail)
 
-    def mutate_ctree(self, body):
+    def mutate_ctree(self, cfunc):
         # transform:
         # ```
         # if (ADDR[0x41414141]) { ... except block }
@@ -131,6 +131,7 @@ class HexraysRebuildSEHHook(ida_hexrays.Hexrays_Hooks):
         # { ... try block }
         # { ... except block }
         # ```
+        body = cfunc.body
         insn_map = {}
         # find_closest_addr and find_parent_of will re-iterate the ctree,
         # so it's safe to mutate the tree in the loop
@@ -173,6 +174,7 @@ class HexraysRebuildSEHHook(ida_hexrays.Hexrays_Hooks):
                     next(blk_iter)
 
                 next(blk_iter)
+                # TODO: need to handle label_num
                 while else_block.begin() != else_block.end():
                     insn = ida_hexrays.cinsn_t()
                     insn.swap(else_block.begin().cur)
@@ -182,82 +184,104 @@ class HexraysRebuildSEHHook(ida_hexrays.Hexrays_Hooks):
             # swap out the insn(cblock_t) from if.then to move it up by one level
             insn = ida_hexrays.cinsn_t()
             insn.swap(cif.ithen)
+
+            # NOTE: important step here, otherwise pop INTERR 50728
+            if insn.label_num != -1 and cur_insn.label_num != -1:
+                # TODO: eventually need to fix this
+                pass
+            elif cur_insn.label_num != -1:
+                insn.label_num = cur_insn.label_num
+
             cur_insn.swap(insn)
             cur_insn.ea = eh_start
 
+            # workaround for `if ([0x41414141]) break;`
+            cur_insn.cblock[0].ea = eh_start
+
+            # TODO: need to find another way to handle break
+            # if cur_insn.cblock[0].op == idaapi.cit_break:
+            #     insn = ida_hexrays.cinsn_t()
+            #     insn.op = ida_hexrays.cit_goto
+            #     insn.ea = eh_start
+            #     insn.cgoto = ida_hexrays.cgoto_t()
+            #     insn.cgoto.label_num = 6666
+            #     cur_insn.swap(insn)
+            #     it = body.find_closest_addr(eh_start)
+            #     while it.is_expr():
+            #         it = body.find_parent_of(it)
+            #     it.label_num = 6666
+
             insn_map[try_start] = cur_insn
 
-        # the second search will yield the actual try blocks,
+        # the second search will yield the actual try block (currently just an expr),
         # since we just delete the preceding if statement
         for try_start, try_end, eh_start in self.seh_list:
+            # find the start expr of the new try block
             it = body.find_closest_addr(try_start)
             while it.is_expr():
                 it = body.find_parent_of(it)
 
             cur_insn = it.cinsn
             pi = body.find_parent_of(it).cinsn
+
+            # sanity check
             assert(pi.op == ida_hexrays.cit_block)
 
-            if pi.op == idaapi.cit_block:
-                start_idx = 0
-                while pi.cblock[start_idx] != cur_insn:
-                    start_idx += 1
+            start_idx = 0
+            while pi.cblock[start_idx] != cur_insn:
+                start_idx += 1
 
-                for end_idx in range(start_idx, pi.cblock.size()):
-                    if pi.cblock[end_idx].ea >= try_end:
-                        break
-                else:
-                    end_idx += 1
-
-                try_block = ida_hexrays.cblock_t()
-                try_insn = ida_hexrays.cinsn_t()
-                try_insn.op = idaapi.cit_block
-                try_insn.cblock = try_block
-                # NOTE: important step here, otherwise pop INTERR 50681
-                # plugins/hexrays_sdk/verifier/cverify.cpp
-                try_insn.ea = try_start
-
-                for idx in range(start_idx, end_idx):
-                    # NOTE: we cannot do this because the erase operation will always free the object
-                    # instead, using swap to take out the insn obj
-                    # try_block.push_back(pi.cblock[idx])
-                    new_insn = ida_hexrays.cinsn_t()
-                    new_insn.swap(pi.cblock[idx])
-                    try_block.push_back(new_insn)
-
-                for _ in range(end_idx - start_idx):
-                    # no way to duplicate a iterator...
-                    it = block_iter(pi.cblock, start_idx)
-                    pi.cblock.erase(it)
-
-                it = block_iter(pi.cblock, start_idx)
-                # TODO: no need to assign + next(it), just insert
-                it = pi.cblock.insert(it, try_insn)
-
-                # move catch block below the try block (swap it out first)
-                catch_insn = insn_map[try_start]
-                cpi = body.find_parent_of(catch_insn).cinsn
-                assert(cpi.op == ida_hexrays.cit_block)
-                blk_iter = cpi.cblock.begin()
-                while blk_iter != cpi.cblock.end():
-                    if blk_iter.cur == catch_insn:
-                        break
-                    next(blk_iter)
-                else:
-                    raise Exception('Failed to get previous block iterator')
-                catch_insn = ida_hexrays.cinsn_t()
-                catch_insn.swap(blk_iter.cur)
-                cpi.cblock.erase(blk_iter)
-
-                next(it)
-                pi.cblock.insert(it, catch_insn)
-
-                # NOTE: the type of splice binding is flawed... (qlist< cinsn_t >::iterator v.s. cinsn_list_t_iterator)
-                # cblock.splice(cblock, pi.cblock, start_ptr, end_ptr)
-                del insn_map[try_start]
+            for end_idx in range(start_idx, pi.cblock.size()):
+                if pi.cblock[end_idx].ea >= try_end:
+                    break
             else:
-                # matched something else
-                print('WTF')
+                end_idx += 1
+
+            try_block = ida_hexrays.cblock_t()
+            try_insn = ida_hexrays.cinsn_t()
+            try_insn.op = idaapi.cit_block
+            try_insn.cblock = try_block
+            # NOTE: important step here, otherwise pop INTERR 50681
+            # plugins/hexrays_sdk/verifier/cverify.cpp
+            try_insn.ea = try_start
+
+            for idx in range(start_idx, end_idx):
+                # NOTE: we cannot do this because the erase operation will always free the object
+                # instead, using swap to take out the insn obj
+                # try_block.push_back(pi.cblock[idx])
+                new_insn = ida_hexrays.cinsn_t()
+                new_insn.swap(pi.cblock[idx])
+                try_block.push_back(new_insn)
+
+            for _ in range(end_idx - start_idx):
+                # no way to duplicate a iterator...
+                it = block_iter(pi.cblock, start_idx)
+                pi.cblock.erase(it)
+
+            it = block_iter(pi.cblock, start_idx)
+            pi.cblock.insert(it, try_insn)
+
+            # move catch block below the try block (swap it out first)
+            catch_insn = insn_map[try_start]
+            cpi = body.find_parent_of(catch_insn).cinsn
+            assert(cpi.op == ida_hexrays.cit_block)
+            blk_iter = cpi.cblock.begin()
+            while blk_iter != cpi.cblock.end():
+                if blk_iter.cur == catch_insn:
+                    break
+                next(blk_iter)
+            else:
+                raise Exception('Failed to get previous block iterator')
+
+            catch_insn = ida_hexrays.cinsn_t()
+            catch_insn.swap(blk_iter.cur)
+            cpi.cblock.erase(blk_iter)
+
+            pi.cblock.insert(it, catch_insn)
+
+            # NOTE: the type of splice binding is flawed... (qlist< cinsn_t >::iterator v.s. cinsn_list_t_iterator)
+            # cblock.splice(cblock, pi.cblock, start_ptr, end_ptr)
+            del insn_map[try_start]
 
         if insn_map:
             raise Exception('Failed to find all try blocks')
