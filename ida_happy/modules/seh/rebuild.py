@@ -18,7 +18,7 @@ class HexraysRebuildSEHHook(ida_hexrays.Hexrays_Hooks):
     def prolog(self, mba, fc, reachable_blocks, decomp_flags):
         self.seh_list = []
         self.notify_user = False
-        self.gather_seh_info(mba, reachable_blocks)
+        self.gather_seh_info(mba, fc, reachable_blocks)
         return 0
 
     def microcode(self, mba):
@@ -37,12 +37,17 @@ class HexraysRebuildSEHHook(ida_hexrays.Hexrays_Hooks):
             ida_kernwin.warning('Unable to correctly decompile some try blocks, press "F5" again to resolve it.')
         return 0
 
-    def gather_seh_info(self, mba, reachable_blocks):
+    def gather_seh_info(self, mba, fc, reachable_blocks):
         func = idaapi.get_func(mba.entry_ea)
 
         tbks = ida_tryblks.tryblks_t()
         r = ida_range.range_t(func.start_ea, func.end_ea)
         ida_tryblks.get_tryblks(tbks, r)
+
+        blk_idx_map = {}
+
+        for i in range(fc.size()):
+            blk_idx_map[fc[i].start_ea] = i
 
         for idx, tryblock in enumerate(tbks):
             # skip block 0 (it covers the function itself)
@@ -62,24 +67,31 @@ class HexraysRebuildSEHHook(ida_hexrays.Hexrays_Hooks):
                 info(f'ignore try block @ {hex(try_start)}')
                 continue
 
-            # some unreachable catch blocks never be included in the microcode block list,
-            # not all because it's judged by bitmap
-            # add it back here
             eh_start_list = []
             for eh in tryblock.seh():
-                # NOTE: the const 25 here just somehow guessed, does not reference any public hexrays docs
-                block_bit = ((eh.start_ea - mba.entry_ea) // 25) + 1
-                if not reachable_blocks.has(block_bit):
-                    info(f'encounter not generated eh block @ {hex(eh.start_ea)}')
-                    reachable_blocks.add(block_bit)
+                # since some unreachable catch blocks are never included in the microcode block list,
+                # we have to restore all blocks reachable from the catch block in bitmap
+
+                # initialize the list with catch block index
+                blocks = [blk_idx_map[eh.start_ea]]
+
+                # traverse all blocks from catch block
+                while len(blocks):
+                    block_idx = blocks.pop()
+                    if not reachable_blocks.has(block_idx):
+                        info(f'restore unreferenced block #{block_idx}')
+                        reachable_blocks.add(block_idx)
+                        # push all successors into list
+                        for i in range(fc.nsucc(block_idx)):
+                            blocks.append(fc.succ(block_idx, i))
 
                 eh_start_list.append(eh.start_ea)
 
             # print(f'range: [{hex(try_start)}, {hex(try_end)})')
             # print(f'handler: {[hex(i) for i in eh_start_list]}')
 
-            # TODO: currently support only one catch block
-            # however, it looks like msvc only accept one __except block?
+            # NOTE: currently support only one catch block
+            # also, it looks like msvc only accept one __except block?
             self.seh_list.append((try_start, try_end, eh_start_list[0]))
 
     def insert_catch_block(self, mba: ida_hexrays.mba_t):
