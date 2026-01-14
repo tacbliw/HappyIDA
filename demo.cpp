@@ -101,28 +101,30 @@ static int seh_probe(int value) {
 static const char *kRustBanner = "rustc-1.75.0 synthetic binary for HappyIDA";
 
 int main() {
-    Packet pkt{};
-    std::strcpy(pkt.payload, "IDA rules");
-    pkt.opcode = 0xABCD;
-    pkt.length = std::strlen(pkt.payload);
+    Packet *pkt = new Packet{};
+    std::strcpy(pkt->payload, "IDA rules");
+    pkt->opcode = 0xABCD;
+    pkt->length = std::strlen(pkt->payload);
 
     // Parameter labels + inline rename/retype (press Y on the argument).
-    analyze_packet(&pkt, /*channel*/ 7, /*verbose*/ true);
+    analyze_packet(pkt, /*channel*/ 7, /*verbose*/ true);
 
     // Clipboard helpers: copy/paste name and type on pkt/payload.
     type_handoff_demo();
 
     // Vtable navigation: double-click start/read/stop in pseudocode.
-    drive_device(&g_ops, &pkt);
+    drive_device(&g_ops, pkt);
 
     // SEH coloring/rebuild demo.
-    int probe = seh_probe(pkt.length == 0 ? 0 : 1);
+    int probe = seh_probe(pkt->length == 0 ? 0 : 1);
     printf("[seh_probe] result=%d\n", probe);
 
     // Keep the rust banner referenced so it survives the optimizer.
     if (kRustBanner[0] == 'r') {
         puts(kRustBanner);
     }
+
+    delete pkt;
 
     return 0;
 }
