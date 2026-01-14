@@ -58,11 +58,12 @@ HappyIDA/
 |---------|------------|
 | Copy / Paste Name | happyida:hx_copyname (copy) / happyida:hx_pastename (paste). |
 | Copy / Paste Type | happyida:hx_copytype / happyida:hx_pastetype. |
+| Edit Local Type | Press E on a highlighted variable to open IDA's type editor for that local. |
 | Edit Parameter | Press Y in a function call when the cursor is on an argument. Choose Rename or Set Type. |
-| Assign Clipboard Type | Highlight an expression, press Ctrl+Shift+T → Paste type. |
-| Navigate Functions | Double‑click on a vtable entry or member pointer in pseudocode. |
-| Rust String Pretty Print | Open a Rust binary – strings automatically colorized in Hex‑Rays. |
-| SEH Highlight | SEH blocks are visually highlighted; right‑click → Rebuild SEH. |
+| Assign Clipboard Type | Highlight an expression, press Ctrl+Shift+C → Paste type. |
+| Navigate Functions | Double-click on a vtable entry or member pointer in pseudocode. |
+| Rust String Pretty Print | Open a Rust binary – strings automatically colorized in Hex-Rays. |
+| SEH Highlight | SEH blocks are visually highlighted; right-click → Rebuild SEH. |
 
 ### Parameter labeling
 
@@ -98,9 +99,17 @@ It shines when a debug string exposes a function/variable name you want to reuse
 
 ![Copy PasteName](images/CopyPasteName.gif)
 
-
 ### Copy / Paste Type 
 
+Works like Copy / Paste Name, but for types. Press `Ctrl+Alt+C` (`happyida:hx_copytype`) to copy the type of the highlighted function, variable, or member and store it as text in your system clipboard. Press `Ctrl+Alt+V` (`happyida:hx_pastetype`) to apply that type to the item under your cursor. Since it re-parses the string from the clipboard, you can also copy any text that can be parsed as a type from Hex-Rays output and paste it back.
+
+![Paste Type](images/PasteType.gif)
+
+### Edit Local Type
+
+Press `E` on a highlighted variable to open IDA's type editor for that local. Useful when you want to refine a type beyond quick paste or cast adjustments.
+
+![Edit Type](images/EditType.gif)
 
 ### SEH Highlight and Rebuild
 
@@ -129,6 +138,7 @@ You can toggle SEH highlighting from the pseudocode context menu (right-click).
 
 Highlight color is set in `ida_happy/modules/seh/highlight.py` via `bgcolor`, tweak it if you want a different tint.
 
+### Navigate Functions 
 
 ## License
 
