@@ -16,7 +16,7 @@ from .modules import (
 )
 from .miscutils import info, error, parse_type
 
-from PyQt5.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 
 ACTION_HX_COPYNAME = "happyida:hx_copyname"
 ACTION_HX_PASTENAME = "happyida:hx_pastename"
@@ -354,6 +354,10 @@ class HexraysEditTypeAction(idaapi.action_handler_t):
         return 1
 
     def _edit_type(self, t):
+
+        if t is None:
+            return
+
         while t.is_ptr_or_array():
             t.remove_ptr_or_array()
 

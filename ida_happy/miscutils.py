@@ -8,6 +8,10 @@ def error(msg):
     print(f'[HappyIDA] Error: {msg}')
 
 def parse_type(tif, typename):
+
+    if typename is None:
+        return False
+
     typename += " ;"
     # we have to distinguish None from empty string, since parse_decl returns the parsed variable name
     if ida_typeinf.parse_decl(tif, ida_typeinf.get_idati(), typename, ida_typeinf.PT_SIL) == None:
