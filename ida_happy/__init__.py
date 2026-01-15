@@ -16,7 +16,10 @@ from .modules import (
 )
 from .miscutils import info, error, parse_type
 
-from PySide6.QtWidgets import QApplication
+try:
+    from PySide6.QtWidgets import QApplication
+except ImportError:
+    from PyQt5.QtWidgets import QApplication
 
 ACTION_HX_COPYNAME = "happyida:hx_copyname"
 ACTION_HX_PASTENAME = "happyida:hx_pastename"
