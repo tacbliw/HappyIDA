@@ -11,9 +11,51 @@ HappyIDA is an IDAPython plugin that adds a set of convenience utilities to the 
 
 ## Installation
 
-1. IDA Pro 9.0 or later (Hex‑Rays must be enabled).
-2. Directly clone this repo to your IDAPython plugins directory (usually ~/.idapro/plugins/)
+### Prerequisites
+
+IDA Pro 9.0 or later (with Hex‑Rays support).
+
+### Method 1: Using hcli (Recommended)
+
+Install using Hex-Rays official plugin manager:
+
+```bash
+hcli plugin install HappyIDA
+```
+
+This will automatically download and install the plugin to your IDA plugins directory.
+
+### Method 2: Manual Installation
+
+1. Install the Python dependency: `pip install ida-settings`
+2. Clone this repo directly to IDA Pro plugins directory (usually `~/.idapro/plugins/`)
 3. Restart IDA
+
+## Configuration
+
+HappyIDA can be customized using `hcli` plugin configuration commands. All features are enabled by default, but you can selectively enable or disable individual features.
+
+To view available settings:
+```bash
+$ hcli plugin config HappyIDA list
+ Key                     Value              Description
+ seh_bgcolor             #8FE0F8 (default)  The background color of the SEH highlight. Format: #RRGGBB
+ enable_param_label      true (default)     Enable parameter labeling
+ enable_param_edit       true (default)     Enable parameter edit
+ enable_param_sync_name  true (default)     Enable parameter sync name
+ enable_param_sync_type  true (default)     Enable parameter sync type
+ enable_func_navigate    true (default)     Enable function navigate
+ enable_rust_string      true (default)     Enable rust string
+ enable_seh_highlight    true (default)     Enable seh highlight
+ enable_seh_rebuild      true (default)     Enable seh rebuild
+```
+
+To set a configuration value:
+```bash
+hcli plugin config HappyIDA set seh_bgcolor #ABCDEF
+```
+
+**Note:** Changes to plugin settings require restarting IDA Pro to take effect.
 
 ## Plugin Structure
 
@@ -125,7 +167,7 @@ You can toggle SEH highlighting from the pseudocode context menu (right-click).
 
 ![Toggle SEH](images/ToggleSEH.png)
 
-Highlight color is set in `ida_happy/modules/seh/highlight.py` via `bgcolor`, tweak it if you want a different tint.
+Highlight color can be customized via `seh_bgcolor` setting in `hcli`, tweak it if you want a different tint.
 
 ### Navigate Functions 
 
