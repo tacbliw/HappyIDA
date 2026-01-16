@@ -4,6 +4,7 @@ import idc
 import ida_hexrays
 import ida_typeinf
 import ida_kernwin
+from ida_settings import get_current_plugin_setting
 from .modules import (
     HexraysParamLabelHook,
     HexraysLabelEditHook,
@@ -418,19 +419,28 @@ class HappyIDAPlugin(idaapi.plugin_t):
                 idaapi.register_action(action)
                 self.registered_hx_actions.append(action.name)
 
-            # Register hexrays hooks
-            self.hx_hooks = [
-                HexraysParamLabelHook(),
-                HexraysLabelEditHook(),
-                HexraysLabelNameSyncHook(),
-                HexraysLabelTypeSyncHook(),
-                HexraysFuncNavigateHook(),
-                HexraysRustStringHook(),
-                HexraysMarkSEHHook(),
-                HexraysRebuildSEHHook()
+            # Register hexrays hooks (gated by settings, default enabled)
+            enable_param_label = get_current_plugin_setting("enable_param_label")
+            hook_configs = [
+                (HexraysParamLabelHook, enable_param_label),
+                (HexraysLabelEditHook, enable_param_label and get_current_plugin_setting("enable_param_edit")),
+                (HexraysLabelNameSyncHook, enable_param_label and get_current_plugin_setting("enable_param_sync_name")),
+                (HexraysLabelTypeSyncHook, enable_param_label and get_current_plugin_setting("enable_param_sync_type")),
+                (HexraysFuncNavigateHook, get_current_plugin_setting("enable_func_navigate")),
+                (HexraysRustStringHook, get_current_plugin_setting("enable_rust_string")),
+                (HexraysMarkSEHHook, get_current_plugin_setting("enable_seh_highlight")),
+                (HexraysRebuildSEHHook, get_current_plugin_setting("enable_seh_rebuild")),
             ]
-            for hook in self.hx_hooks:
+            
+            self.hx_hooks = []
+            for hook_class, is_enabled in hook_configs:
+                if not is_enabled:
+                    info(f"Hook {hook_class.__name__} is disabled in settings")
+                    continue
+
+                hook = hook_class()
                 hook.hook()
+                self.hx_hooks.append(hook)
 
             self.hexrays_inited = True
 

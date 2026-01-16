@@ -47,6 +47,78 @@
         "validation_pattern": "#[0-9A-Fa-f]{6}",
         "prompt": false,
         "required": true
+      },
+      {
+        "key": "enable_param_label",
+        "type": "boolean",
+        "default": true,
+        "name": "Enable Parameter Labeling",
+        "documentation": "Enable parameter labeling",
+        "prompt": false,
+        "required": true
+      },
+      {
+        "key": "enable_param_edit",
+        "type": "boolean",
+        "default": true,
+        "name": "Enable Parameter Edit",
+        "documentation": "Enable parameter edit",
+        "prompt": false,
+        "required": true
+      },
+      {
+        "key": "enable_param_sync_name",
+        "type": "boolean",
+        "default": true,
+        "name": "Enable Parameter Sync Name",
+        "documentation": "Enable parameter sync name",
+        "prompt": false,
+        "required": true
+      },
+      {
+        "key": "enable_param_sync_type",
+        "type": "boolean",
+        "default": true,
+        "name": "Enable Parameter Sync Type",
+        "documentation": "Enable parameter sync type",
+        "prompt": false,
+        "required": true
+      },
+      {
+        "key": "enable_func_navigate",
+        "type": "boolean",
+        "default": true,
+        "name": "Enable Function Navigate",
+        "documentation": "Enable function navigate",
+        "prompt": false,
+        "required": true
+      },
+      {
+        "key": "enable_rust_string",
+        "type": "boolean",
+        "default": true,
+        "name": "Enable Rust String",
+        "documentation": "Enable rust string",
+        "prompt": false,
+        "required": true
+      },
+      {
+        "key": "enable_seh_highlight",
+        "type": "boolean",
+        "default": true,
+        "name": "Enable SEH Highlight",
+        "documentation": "Enable seh highlight",
+        "prompt": false,
+        "required": true
+      },
+      {
+        "key": "enable_seh_rebuild",
+        "type": "boolean",
+        "default": true,
+        "name": "Enable SEH Rebuild",
+        "documentation": "Enable seh rebuild",
+        "prompt": false,
+        "required": true
       }
     ]
   }
