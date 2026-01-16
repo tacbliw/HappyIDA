@@ -11,7 +11,7 @@ class HexraysMarkSEHHook(ida_hexrays.Hexrays_Hooks):
     """highlight the SEH try blocks"""
     active = True
 
-    def __init__(self, bgcolor=0x8FE0F8):
+    def __init__(self):
         super().__init__()
 
         ACTION_SEHHOOK_LIST = "happyida:SEHHookList"
@@ -86,7 +86,7 @@ class HexraysMarkSEHHook(ida_hexrays.Hexrays_Hooks):
                 ida_kernwin.jumpto(selected_address)
 
         self.enable = self.is_pe_binary()
-        self.bgcolor = int(get_current_plugin_setting("seh_bgcolor")[1:], 16)
+        self.bgcolor = int(get_current_plugin_setting("seh_bgcolor"), 16)
 
         if self.enable:
             self.actions = [

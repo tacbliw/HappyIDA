@@ -41,10 +41,10 @@
       {
         "key": "seh_bgcolor",
         "type": "string",
-        "default": "#8FE0F8",
+        "default": "8FE0F8",
         "name": "SEH Highlight Background Color",
-        "documentation": "The background color of the SEH highlight. Format: #RRGGBB",
-        "validation_pattern": "#[0-9A-Fa-f]{6}",
+        "documentation": "The background color of the SEH highlight. Format: RRGGBB",
+        "validation_pattern": "[0-9A-Fa-f]{6}",
         "prompt": false,
         "required": true
       },

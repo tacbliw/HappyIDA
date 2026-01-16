@@ -39,7 +39,7 @@ To view available settings:
 ```bash
 $ hcli plugin config HappyIDA list
  Key                     Value              Description
- seh_bgcolor             #8FE0F8 (default)  The background color of the SEH highlight. Format: #RRGGBB
+ seh_bgcolor             8FE0F8 (default)  The background color of the SEH highlight. Format: RRGGBB
  enable_param_label      true (default)     Enable parameter labeling
  enable_param_edit       true (default)     Enable parameter edit
  enable_param_sync_name  true (default)     Enable parameter sync name
@@ -52,7 +52,7 @@ $ hcli plugin config HappyIDA list
 
 To set a configuration value:
 ```bash
-hcli plugin config HappyIDA set seh_bgcolor #ABCDEF
+hcli plugin config HappyIDA set seh_bgcolor ABCDEF
 ```
 
 **Note:** Changes to plugin settings require restarting IDA Pro to take effect.
